@@ -1,3 +1,5 @@
+![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg) ![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)
+
 # codemap 🗺️
 
 **Intelligent Codebase Map for AI Agents** — the 20% context that gives 80% understanding.
