@@ -157,7 +157,31 @@ def _get_description(filepath: str) -> str:
     return ""
 
 
-def discover_files(root: str, max_depth: int = 10) -> list[FileEntry]:
+def _is_test_file(filepath: str) -> bool:
+    """Check if a file is a test file based on naming conventions."""
+    basename = os.path.basename(filepath)
+    dirname = os.path.basename(os.path.dirname(filepath))
+    
+    # Common test file patterns
+    test_patterns = [
+        basename.startswith('test_'),
+        basename.endswith('_test.py'),
+        basename.endswith('_test.js'),
+        basename.endswith('.test.js'),
+        basename.endswith('.test.ts'),
+        basename.endswith('.spec.js'),
+        basename.endswith('.spec.ts'),
+        basename == 'test.py',
+        basename == 'tests.py',
+    ]
+    
+    # Common test directory names
+    test_dirs = {'test', 'tests', '__tests__', 'spec', 'specs'}
+    
+    return any(test_patterns) or dirname in test_dirs
+
+
+def discover_files(root: str, max_depth: int = 10, exclude_tests: bool = False) -> list[FileEntry]:
     """Discover project files, excluding noise."""
     entries: list[FileEntry] = []
     root = os.path.abspath(root)
@@ -176,6 +200,11 @@ def discover_files(root: str, max_depth: int = 10) -> list[FileEntry]:
             if fname in SKIP_FILES or fname.startswith('.'):
                 continue
             filepath = os.path.join(dirpath, fname)
+            
+            # Skip test files if requested
+            if exclude_tests and _is_test_file(filepath):
+                continue
+            
             rel = os.path.relpath(filepath, root)
 
             try:
@@ -532,9 +561,10 @@ def _format_deps(apis: list[ModuleAPI]) -> str:
 
 def generate_map(root: str, max_depth: int = 10,
                   include_private: bool = False,
-                  token_budget: int | None = None) -> str:
+                  token_budget: int | None = None,
+                  exclude_tests: bool = False) -> str:
     """Generate the complete codebase map."""
-    entries = discover_files(root, max_depth=max_depth)
+    entries = discover_files(root, max_depth=max_depth, exclude_tests=exclude_tests)
     if not entries:
         return "No files found."
 
@@ -621,9 +651,10 @@ def generate_map(root: str, max_depth: int = 10,
 
 
 def generate_json(root: str, max_depth: int = 10,
-                   include_private: bool = False) -> str:
+                   include_private: bool = False,
+                   exclude_tests: bool = False) -> str:
     """Generate JSON output."""
-    entries = discover_files(root, max_depth=max_depth)
+    entries = discover_files(root, max_depth=max_depth, exclude_tests=exclude_tests)
     _score_importance(entries, root)
     entries.sort(key=lambda e: -e.importance)
 
@@ -724,6 +755,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="Maximum directory depth (default: 10)")
     parser.add_argument("--include-private", action="store_true",
                         help="Include _private functions and classes")
+    parser.add_argument("--exclude-tests", action="store_true",
+                        help="Exclude test files from output (test_*, *_test.py, tests/, etc.)")
     parser.add_argument("--token-budget", type=int, default=None,
                         help="Target token budget (output truncated to fit)")
     parser.add_argument("--version", action="version", version="codemap 1.0.0")
@@ -737,11 +770,13 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.format == "json":
         print(generate_json(root, max_depth=args.depth,
-                             include_private=args.include_private))
+                             include_private=args.include_private,
+                             exclude_tests=args.exclude_tests))
     else:
         print(generate_map(root, max_depth=args.depth,
                             include_private=args.include_private,
-                            token_budget=args.token_budget))
+                            token_budget=args.token_budget,
+                            exclude_tests=args.exclude_tests))
 
     return 0
 
